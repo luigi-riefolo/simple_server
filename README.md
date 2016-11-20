@@ -1,6 +1,6 @@
 # simple_server
 
-simple_server is a Go implementation of an HTTP server.
+Go implementation of a simple HTTP server with a concurrent request counter.
 
 ## Contributing
 
