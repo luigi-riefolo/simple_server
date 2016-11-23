@@ -12,6 +12,7 @@ import (
 	"os/signal"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -21,10 +22,9 @@ const (
 	timeLapse   = time.Minute
 )
 
-// requestCounter contains a counter for the requests
-// served and a mutex to read/write the counter.
+// requestCounter contains a counter
+// for the requests served.
 type requestCounter struct {
-	mu        sync.Mutex
 	requestNo uint64
 }
 
@@ -39,33 +39,25 @@ var mux map[string]func(http.ResponseWriter, *http.Request)
 
 // set sets the value of the request counter.
 func (c *requestCounter) set(cnt uint64) {
-	c.mu.Lock()
-	c.requestNo = cnt
-	c.mu.Unlock()
+	atomic.StoreUint64(&c.requestNo, cnt)
 	requestCnt.updateFile()
 }
 
 // increment increments the value of the request counter.
 func (c *requestCounter) increment() {
-	c.mu.Lock()
-	c.requestNo++
-	c.mu.Unlock()
+	atomic.AddUint64(&c.requestNo, 1)
 	requestCnt.updateFile()
 }
 
 // reset resets the value of the request counter.
 func (c *requestCounter) reset() {
-	c.mu.Lock()
-	c.requestNo = 0
-	c.mu.Unlock()
+	atomic.StoreUint64(&c.requestNo, 0)
 	requestCnt.updateFile()
 }
 
 // value returns the value of the request counter.
 func (c *requestCounter) value() (ret uint64) {
-	c.mu.Lock()
-	ret = c.requestNo
-	c.mu.Unlock()
+	ret = atomic.LoadUint64(&c.requestNo)
 	return
 }
 
@@ -92,9 +84,7 @@ func (c *requestCounter) loadFile() {
 	requestNo, err := strconv.ParseUint(string(reqNo), 10, 64)
 	abort("convert", err)
 
-	c.mu.Lock()
-	c.requestNo = requestNo
-	c.mu.Unlock()
+	atomic.StoreUint64(&c.requestNo, requestNo)
 }
 
 // updateFile writes the number
@@ -129,7 +119,7 @@ func (*handlerDispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // printRequestNo is the worker
 // function for the main hanlder.
 func printRequestNo(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "GET" {
+	if r.Method != http.MethodGet {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
